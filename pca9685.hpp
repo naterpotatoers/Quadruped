@@ -14,12 +14,12 @@ namespace sjsu
     units::frequency::hertz_t frequency = 50_Hz;
     units::angle::degree_t min_angle = 0_deg;
     units::angle::degree_t max_angle = 180_deg;
-    std::chrono::microseconds min_pulse = 500us;
+    std::chrono::microseconds min_pulse = 520us;
     std::chrono::microseconds max_pulse = 2400us;
   };
 
   /// Driver for the PCA9685 I2C to PWM controller
-  class Pca9685 : public Module<pca9685_settings>
+  class PCA9685 : public Module<pca9685_settings>
   {
   public:
     /// Map of all of the used device addresses in this driver.
@@ -31,8 +31,11 @@ namespace sjsu
       kPreScaler = 0xFE
     };
 
-    explicit constexpr Pca9685(I2c &i2c, uint8_t address = 0x40)
-        : i2c_(i2c), kAddress(address){};
+    explicit constexpr PCA9685(I2c &i2c, uint8_t address = 0x40)
+        : i2c_(i2c), kAddress(address)
+    {
+      ModuleInitialize();
+    };
 
     void ModuleInitialize() override
     {
@@ -52,7 +55,6 @@ namespace sjsu
       i2c_.Write(kAddress, {static_cast<uint8_t>(Value(RegisterMap::kPreScaler)), scale_value});
     }
 
-    // The delay can be used to stagger the outputs, to minimize current spikes.
     void SetDutyCycle(uint8_t output_number, float duty_cycle, float delay = 0.0f)
     {
       if (delay + duty_cycle > 1)
@@ -72,10 +74,11 @@ namespace sjsu
 
     void SetAngle(uint8_t output_number, units::angle::degree_t angle)
     {
-      const int pulseWidthRange = static_cast<int>((settings.max_pulse - settings.min_pulse).count());
-      const int minPulseWidth = static_cast<int>(settings.min_pulse.count());
-      auto angleToPwm = std::chrono::microseconds((angle * pulseWidthRange / settings.max_angle) + minPulseWidth);
-      SetPulseWidth(output_number, angleToPwm);
+      const int min_pulse_width = static_cast<int>(settings.min_pulse.count());
+      const int max_pulse_width = static_cast<int>(settings.max_pulse.count());
+      const int pulse_width_difference = max_pulse_width - min_pulse_width;
+      auto angle_to_pwn = std::chrono::microseconds((angle * pulse_width_difference / settings.max_angle) + min_pulse_width);
+      SetPulseWidth(output_number, angle_to_pwn);
     }
 
     void fullOn(uint8_t output_number)
