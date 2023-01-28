@@ -44,26 +44,10 @@ namespace sjsu
       EnableDevice(true);
     }
 
-    void ModulePowerDown() override
-    {
-      EnableDevice(false);
-    }
-
     void SetFrequency(units::frequency::hertz_t output_frequency)
     {
       uint8_t scale_value = static_cast<uint8_t>(round((25_MHz / (4096 * output_frequency)).to<float>()) - 1);
       i2c_.Write(kAddress, {static_cast<uint8_t>(Value(RegisterMap::kPreScaler)), scale_value});
-    }
-
-    void SetDutyCycle(uint8_t output_number, float duty_cycle, float delay = 0.0f)
-    {
-      if (delay + duty_cycle > 1)
-      {
-        throw Exception(std::errc::invalid_argument, "The sum of the delay and duty cycle cannot be greater than 100%");
-      }
-      uint16_t on_time = 0;
-      uint16_t off_time = static_cast<uint16_t>((4096.f * duty_cycle + 0.5f) + on_time);
-      setPWM(output_number, on_time, off_time);
     }
 
     void SetPulseWidth(uint8_t output_number, units::time::second_t pulse_length)
@@ -79,41 +63,6 @@ namespace sjsu
       const int pulse_width_difference = max_pulse_width - min_pulse_width;
       auto angle_to_pwn = std::chrono::microseconds((angle * pulse_width_difference / settings.max_angle) + min_pulse_width);
       SetPulseWidth(output_number, angle_to_pwn);
-    }
-
-    void fullOn(uint8_t output_number)
-    {
-      if (output_number > 15)
-      {
-        throw Exception(std::errc::invalid_argument, "Invalid output number - pin must be between 0-15");
-      }
-
-      constexpr auto kOperateBit = bit::MaskFromRange(4);
-      uint8_t onData;
-      uint8_t off_data;
-
-      i2c_.WriteThenRead(kAddress, {static_cast<uint8_t>(4 * output_number + Value(RegisterMap::kOutputAddress0) + 1)}, &onData, 1);
-      i2c_.WriteThenRead(kAddress, {static_cast<uint8_t>(4 * output_number + Value(RegisterMap::kOutputAddress0) + 3)}, &off_data, 1);
-
-      onData = bit::Insert(onData, true, kOperateBit);
-      off_data = bit::Insert(off_data, false, kOperateBit);
-
-      i2c_.Write(kAddress, {static_cast<uint8_t>(4 * output_number + Value(RegisterMap::kOutputAddress0) + 3), off_data});
-      i2c_.Write(kAddress, {static_cast<uint8_t>(4 * output_number + Value(RegisterMap::kOutputAddress0) + 1), onData});
-    }
-
-    void fullOff(uint8_t output_number)
-    {
-      if (output_number > 15)
-      {
-        throw Exception(std::errc::invalid_argument, "Invalid output number - pin must be between 0-15");
-      }
-      constexpr auto kOperateBit = bit::MaskFromRange(4);
-
-      uint8_t off_data;
-      i2c_.WriteThenRead(kAddress, {static_cast<uint8_t>(4 * output_number + Value(RegisterMap::kOutputAddress0) + 3)}, &off_data, 1);
-      off_data = bit::Insert(off_data, true, kOperateBit); // Enable full off
-      i2c_.Write(kAddress, {static_cast<uint8_t>(4 * output_number + Value(RegisterMap::kOutputAddress0) + 3), off_data});
     }
 
   private:
